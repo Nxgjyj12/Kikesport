@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kikesport - Plataforma Multideportiva Integrada</title>
+    
+    <!-- Fuentes e Iconos -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Librerías Externas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Estilos de la Subcarpeta CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo-text">Kike<span>Sport</span></div>
+        <div id="userHeaderInfo" class="user-status hidden">
+            <span id="userNameDisplay">Usuario</span>
+            <span id="userPlanBadge" class="badge-plan badge-basica">BÁSICA</span>
+            <button class="btn-toggle-plan" onclick="abrirModalSuscripcion()"><i class="fa-solid fa-crown"></i> VER PLANES PRO</button>
+            <button class="btn-toggle-plan" style="border-color:#ef4444; color:#ef4444" onclick="logout()">Salir</button>
+        </div>
+    </header>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="container">
+        
+        <!-- PANTALLA AUTH: REGISTRO E INICIO DE SESIÓN -->
+        <div id="authScreen" class="auth-container glass-panel">
+            <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--glass-border); padding-bottom:10px;">
+                <button id="tabLoginBtn" class="tab-btn active" style="flex:1;" onclick="mostrarTabAuth('login')">Iniciar Sesión</button>
+                <button id="tabRegisterBtn" class="tab-btn" style="flex:1;" onclick="mostrarTabAuth('register')">Registrarse</button>
+            </div>
+
+            <!-- FORMULARIO 1: INICIAR SESIÓN -->
+            <div id="formLogin">
+                <div class="form-group">
+                    <label for="authUsername">Usuario / Email</label>
+                    <input type="text" id="authUsername" placeholder="Ej. Entrenador1">
+                </div>
+                <div class="form-group">
+                    <label for="authPassword">Contraseña</label>
+                    <input type="password" id="authPassword" placeholder="••••••••">
+                </div>
+                <button class="btn-primary" onclick="iniciarPrimerPasoAuth()">Continuar con Verificación</button>
+            </div>
+
+            <!-- FORMULARIO 2: REGISTRO DE NUEVO USUARIO -->
+            <div id="formRegister" class="hidden">
+                <div class="form-group">
+                    <label for="regUsername">Nombre de Usuario</label>
+                    <input type="text" id="regUsername" placeholder="Ej. ProfeKike">
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Correo Electrónico</label>
+                    <input type="email" id="regEmail" placeholder="entrenador@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Contraseña</label>
+                    <input type="password" id="regPassword" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label for="regConfirmPassword">Confirmar Contraseña</label>
+                    <input type="password" id="regConfirmPassword" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label for="regPlan">Plan Inicial</label>
+                    <select id="regPlan">
+                        <option value="basica">Plan Básico (1 Plantilla, Gratuito)</option>
+                        <option value="pro">Plan PRO ($125/mes - Ilimitado)</option>
+                    </select>
+                </div>
+                <button class="btn-primary" onclick="registrarNuevoUsuario()">Crear Cuenta y Verificar</button>
+            </div>
+        </div>
+
+        <!-- PANTALLA DE VERIFICACIÓN PIN 2FA -->
+        <div id="securityStepScreen" class="auth-container glass-panel hidden">
+            <div style="text-align: center;">
+                <i class="fa-solid fa-shield-halved fa-2x" style="color:var(--neon-green); margin-bottom:10px;"></i>
+                <h2>Verificación de Seguridad</h2>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">
+                    Ingresa el código PIN generado para completar tu acceso:
+                </p>
+                
+                <div id="securityCodeDisplay" style="background: rgba(0,255,102,0.1); border: 1px dashed var(--neon-green); color: var(--neon-green); font-weight: 800; font-size: 24px; letter-spacing: 5px; padding: 10px; border-radius: 8px; margin: 15px 0;">
+                    ------
+                </div>
+
+                <div class="form-group">
+                    <label for="inputSecurityCode">Código PIN de 6 dígitos</label>
+                    <input type="text" id="inputSecurityCode" maxlength="6" style="text-align:center; font-size:18px; letter-spacing:3px;" placeholder="000000">
+                </div>
+
+                <button class="btn-primary" onclick="verificarCodigoSeguridad()">Verificar e Iniciar Sesión</button>
+                <button class="btn-secondary" style="width:100%; margin-top:10px;" onclick="cancelarAuth()">Volver</button>
+            </div>
+        </div>
+
+        <!-- DASHBOARD PRINCIPAL -->
+        <div id="dashboardScreen" class="grid-dashboard hidden">
+            
+            <!-- LATERAL: PLANTILLAS -->
+            <div>
+                <div class="glass-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3>Mis Plantillas</h3>
+                        <span id="plantillasCounter" style="font-size:12px; color:var(--text-muted);">0/1</span>
+                    </div>
+                    <div id="plantillasList"></div>
+                    
+                    <hr style="border-color:var(--glass-border); margin:15px 0;">
+                    
+                    <h4 style="margin-bottom:10px;">Crear Nueva Plantilla</h4>
+                    <div class="form-group">
+                        <label for="newPlantillaName">Nombre del Equipo</label>
+                        <input type="text" id="newPlantillaName" placeholder="Ej. Halcones FC">
+                    </div>
+                    <div class="form-group">
+                        <label for="newPlantillaSport">Deporte</label>
+                        <select id="newPlantillaSport">
+                            <option value="Futbol">Fútbol</option>
+                            <option value="Basquetbol">Básquetbol</option>
+                            <option value="Voleybol">Voleibol</option>
+                            <option value="Beisbol">Béisbol</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="crearPlantilla()">+ Crear Plantilla</button>
+                </div>
+            </div>
+
+            <!-- DERECHA: PESTAÑAS -->
+            <div>
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('jugadores')">Jugadores</button>
+                    <button class="tab-btn" onclick="switchTab('hojaCalculo')">📊 Hoja Integrada</button>
+                    <button class="tab-btn" onclick="switchTab('cancha')">Pizarrón Táctico</button>
+                    <button class="tab-btn" onclick="switchTab('graficas')">Analítica y PDF</button>
+                </div>
+
+                <!-- TAB: JUGADORES -->
+                <div id="tabJugadores" class="glass-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 id="currentPlantillaTitle">Selecciona una Plantilla</h3>
+                        <div style="display:flex; gap:8px;">
+                            <button id="btnAutoFill" class="btn-secondary" style="border-color:var(--neon-green); color:var(--neon-green);" onclick="autocompletarEquipo()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Llenar Plantilla</button>
+                            <span id="playersCounter" style="font-size:12px; color:var(--text-muted); align-self:center;">0 Jugadores</span>
+                        </div>
+                    </div>
+
+                    <div id="playerFormBox" class="hidden" style="background: rgba(0,0,0,0.3); padding:15px; border-radius:10px; margin-bottom:20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 id="formTitle" style="color:var(--neon-green)">Agregar Atleta</h4>
+                            <button id="btnCancelEdit" class="btn-secondary hidden" onclick="cancelarEdicion()">Cancelar</button>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:10px;">
+                            <div class="form-group"><label for="playerName">Nombre</label><input type="text" id="playerName" placeholder="Nombre completo"></div>
+                            <div class="form-group"><label for="playerHeight">Estatura(m)</label><input type="number" step="0.01" id="playerHeight"></div>
+                            <div class="form-group"><label for="playerWeight">Peso(kg)</label><input type="number" step="0.1" id="playerWeight"></div>
+                            <div class="form-group"><label for="playerPosition">Posición</label><select id="playerPosition"></select></div>
+                            <div class="form-group"><label for="statVel">Velocidad (0-100)</label><input type="number" id="statVel" min="0" max="100"></div>
+                            <div class="form-group"><label for="statFue">Fuerza (0-100)</label><input type="number" id="statFue" min="0" max="100"></div>
+                            <div class="form-group"><label for="statRes">Resistencia (0-100)</label><input type="number" id="statRes" min="0" max="100"></div>
+                            <div class="form-group"><label for="statTec">Técnica (0-100)</label><input type="number" id="statTec" min="0" max="100"></div>
+                        </div>
+                        <button id="btnSavePlayer" class="btn-primary" style="margin-top:10px" onclick="guardarJugador()">Guardar Jugador</button>
+                    </div>
+                    <div id="playersList"></div>
+                </div>
+
+                <!-- TAB: HOJA DE CÁLCULO AUTO-CALCULADA -->
+                <div id="tabHojaCalculo" class="glass-panel hidden">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <div>
+                            <h3 style="color:var(--neon-green)"><i class="fa-solid fa-table-cells"></i> Hoja de Cálculo Auto-Calculada</h3>
+                            <p style="font-size:11px; color:var(--text-muted);">Los datos editados se sincronizan automáticamente con el perfil del atleta.</p>
+                        </div>
+                        <button class="btn-secondary" style="border-color:var(--neon-green); color:var(--neon-green)" onclick="sincronizarHojaAJugadores()"><i class="fa-solid fa-rotate"></i> Sincronización Manual</button>
+                    </div>
+                    <div class="sheet-container-wrapper">
+                        <div class="sheet-toolbar">
+                            <button class="btn-secondary" onclick="descargarFormatoExcel()"><i class="fa-solid fa-file-excel"></i> Exportar .xlsx</button>
+                            <button class="btn-secondary" onclick="document.getElementById('excelFileInput').click()"><i class="fa-solid fa-file-import"></i> Importar</button>
+                            <input type="file" id="excelFileInput" accept=".xlsx, .csv" class="hidden" onchange="importarExcel(event)">
+                            <button class="btn-secondary" onclick="agregarFilaSheet()">+ Fila</button>
+                            <button class="btn-secondary" onclick="eliminarFilaSheet()" style="color:var(--danger-red);">Borrar Fila</button>
+                        </div>
+                        <div class="sheet-fx-bar">
+                            <span id="sheetCellRef" style="font-weight:700; color:var(--neon-green); min-width:35px;">A1</span>
+                            <span style="font-style:italic; color:var(--text-muted); font-weight:bold;">fx</span>
+                            <input type="text" id="sheetFormulaInput" style="flex:1; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:4px; color:#fff; padding:4px 8px; outline:none;" placeholder="Fórmulas: =SUM(A1:A5), =AVERAGE(A1:A5), =COUNT(A1:A5), =MEDIAN(A1:A5)">
+                        </div>
+                        <div class="sheet-grid-scroll">
+                            <table class="internal-sheet" id="internalSheetTable">
+                                <thead id="sheetHead"></thead>
+                                <tbody id="sheetBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: PIZARRÓN TÁCTICO -->
+                <div id="tabCancha" class="glass-panel hidden">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 id="canchaHeaderTitle">Pizarrón Táctico</h3>
+                        <div style="display:flex; gap:10px;">
+                            <button id="btnToggleDraw" class="btn-secondary" onclick="toggleDrawingMode()"><i class="fa-solid fa-pen"></i> Dibujar Trazos</button>
+                            <button class="btn-secondary" onclick="exportarCanchaPNG()"><i class="fa-solid fa-image"></i> Exportar PNG</button>
+                            <button class="btn-secondary" onclick="resetFormacionOriginal()">Restablecer</button>
+                        </div>
+                    </div>
+                    <div id="courtArea" class="court-container">
+                        <canvas id="drawingCanvas"></canvas>
+                        <div id="playersLayer"></div>
+                    </div>
+                </div>
+
+                <!-- TAB: GRÁFICAS Y PDF -->
+                <div id="tabGraficas" class="glass-panel hidden">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3>Analítica y Reportes</h3>
+                        <button class="btn-primary" style="width:auto; padding:8px 15px;" onclick="exportarReportePDF()"><i class="fa-solid fa-file-pdf"></i> Exportar Reporte PDF</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+                        <div>
+                            <h4 style="font-size:12px; text-align:center; margin-bottom:10px;">Promedios Físicos del Equipo</h4>
+                            <canvas id="chartTeamStats"></canvas>
+                        </div>
+                        <div>
+                            <div style="display:flex; flex-direction:column; gap:5px; margin-bottom:10px;">
+                                <h4 style="font-size:12px;">Comparativa Head-to-Head (Cara a Cara)</h4>
+                                <div style="display:flex; gap:10px;">
+                                    <select id="radarPlayer1Select" style="font-size: 11px;" onchange="actualizarGraficaRadar()">
+                                        <option value="promedio">Promedio General</option>
+                                    </select>
+                                    <select id="radarPlayer2Select" style="font-size: 11px;" onchange="actualizarGraficaRadar()">
+                                        <option value="ninguno">-- Comparar con --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <canvas id="chartPlayerRadar"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE SUSCRIPCIÓN PRO ($125/MES Y $1200/AÑO) -->
+    <div id="modalSuscripcion" class="modal-overlay hidden">
+        <div class="custom-modal">
+            <h2 style="color:var(--pro-gold);"><i class="fa-solid fa-crown"></i> Kikesport PRO</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:5px;">
+                Desbloquea plantillas ilimitadas, pizarrón táctico interactivo con trazado y reportes en PDF.
+            </p>
+
+            <div class="pricing-grid">
+                <div id="cardPlanMensual" class="price-card active" onclick="seleccionarPlanSuscripcion('mensual')">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-muted);">MENSUAL</div>
+                    <div class="price">$125 <span style="font-size:12px; font-weight:400; color:#fff;">MXN/mes</span></div>
+                    <div style="font-size:10px; color:var(--text-muted);">Facturación recurrente mes a mes. Sin plazos forzosos.</div>
+                </div>
+                <div id="cardPlanAnual" class="price-card" onclick="seleccionarPlanSuscripcion('anual')">
+                    <div style="font-size:11px; font-weight:700; color:var(--neon-green);">ANUAL (AHORRA 20%)</div>
+                    <div class="price">$1,200 <span style="font-size:12px; font-weight:400; color:#fff;">MXN/año</span></div>
+                    <div style="font-size:10px; color:var(--text-muted);">Equivale a $100 MXN/mes. Pago único anual.</div>
+                </div>
+            </div>
+
+            <button class="btn-primary" style="background:linear-gradient(135deg, var(--pro-gold), #d97706); color:#000;" onclick="confirmarSuscripcionPro()">Suscripción Activa PRO</button>
+            <button class="btn-secondary" style="width:100%; margin-top:10px;" onclick="cerrarModalSuscripcion()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Script de la Subcarpeta JS -->
+    <script src="js/app.js"></script>
+</body>
+</html>
