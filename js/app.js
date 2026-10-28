@@ -77,15 +77,13 @@ function iniciarSesion() {
     const pass = document.getElementById('authPassword').value.trim();
     if (!email || !pass) return showToast("Ingresa tu correo y contraseña", "error");
 
-    // No llamamos cargarDatosUsuario aquí, onAuthStateChanged se encarga.
     auth.signInWithEmailAndPassword(email, pass)
         .then(userCredential => {
-            if (!userCredential.user.emailVerified) {
-                showToast("Por favor verifica tu correo electrónico antes de ingresar.", "error");
-                auth.signOut();
-            }
+            // Entra de inmediato al dashboard sin verificar correo
+            cargarDatosUsuario(userCredential.user);
         })
         .catch(() => showToast("Correo o contraseña incorrectos", "error"));
+}
 }
 
 function recuperarPassword() {
