@@ -43,6 +43,8 @@ let currentUser = null;
 let localPlantillas = [];
 let selectedPlanTipo = 'mensual';
 
+// --- AUTENTICACIÓN ---
+
 function registrarNuevoUsuario() {
     const username = document.getElementById('regUsername').value.trim();
     const email = document.getElementById('regEmail').value.trim();
@@ -58,16 +60,16 @@ function registrarNuevoUsuario() {
     auth.createUserWithEmailAndPassword(email, pass)
         .then(async (userCredential) => {
             const uid = userCredential.user.uid;
+            // Se crea el usuario en Firestore con plan básico directamente
             await db.collection('users').doc(uid).set({
                 email: email.toLowerCase(),
-                username: username, // Se guarda crudo, se sanitiza al renderizar
+                username: username,
                 plan: 'basica',
                 planTipo: 'gratuito'
             });
-            await userCredential.user.sendEmailVerification();
-            showToast("Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta.");
-            auth.signOut(); 
-            mostrarTabAuth('login');
+            showToast("¡Registro exitoso! Iniciando sesión...");
+            // No hacemos signOut, entramos de una vez
+            cargarDatosUsuario(userCredential.user);
         })
         .catch(error => showToast("Error al registrar: " + error.message, "error"));
 }
@@ -79,11 +81,10 @@ function iniciarSesion() {
 
     auth.signInWithEmailAndPassword(email, pass)
         .then(userCredential => {
-            // Entra de inmediato al dashboard sin verificar correo
+            // Ya no verificamos emailVerified, pasamos directo
             cargarDatosUsuario(userCredential.user);
         })
         .catch(() => showToast("Correo o contraseña incorrectos", "error"));
-}
 }
 
 function recuperarPassword() {
@@ -95,7 +96,8 @@ function recuperarPassword() {
 }
 
 auth.onAuthStateChanged(async (user) => {
-    if (user && user.emailVerified) {
+    // Escucha si hay sesión activa al recargar la página (sin verificar emailVerified)
+    if (user) {
         await cargarDatosUsuario(user);
     }
 });
@@ -106,7 +108,7 @@ async function cargarDatosUsuario(user) {
         if (docRef.exists) {
             currentUser = { uid: user.uid, ...docRef.data() };
         } else {
-            // Backup por si se eliminó el documento
+            // Backup por si se eliminó el documento manual
             currentUser = { uid: user.uid, email: user.email, username: user.email.split('@')[0], plan: 'basica', planTipo: 'gratuito' };
             await db.collection('users').doc(user.uid).set(currentUser);
         }
@@ -131,6 +133,7 @@ function logout() {
     auth.signOut().then(() => { currentUser = null; localPlantillas = []; location.reload(); });
 }
 
+// --- DEPORTES Y COORDENADAS ---
 const SPORT_POSITIONS = {
     Futbol: ["Portero", "Defensa Central", "Lateral", "Mediocentro", "Extremo", "Delantero Centro"],
     Basquetbol: ["Base (PG)", "Escolta (SG)", "Alero (SF)", "Ala-Pívot (PF)", "Pívot (C)"],
@@ -152,13 +155,10 @@ const SPORT_COURT_SVGS = {
     Beisbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="xMidYMid slice"><rect width="600" height="350" fill="#166534"/><path d="M 50,20 L 300,310 L 550,20 Z" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/><path d="M 50,80 Q 300,-30 550,80" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><polygon points="300,310 420,210 300,110 180,210" fill="#7c2d12" stroke="#ffffff" stroke-width="2" opacity="0.85"/><circle cx="300" cy="210" r="18" fill="#a16207" stroke="#ffffff" stroke-width="2"/><rect x="294" y="208" width="12" height="4" fill="#ffffff"/><polygon points="300,315 293,308 293,302 307,302 307,308" fill="#ffffff"/><rect x="414" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 420 210)"/><rect x="294" y="104" width="12" height="12" fill="#ffffff" transform="rotate(45 300 110)"/><rect x="174" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 180 210)"/></svg>`
 };
 
+// --- PLANES PRO ---
 function abrirModalSuscripcion() { document.getElementById('modalSuscripcion').classList.remove('hidden'); }
 function cerrarModalSuscripcion() { document.getElementById('modalSuscripcion').classList.add('hidden'); }
-
-function seleccionarPlanSuscripcion(tipo) {
-    selectedPlanTipo = tipo;
-    document.getElementById('cardPlanMensual').classList.toggle('active', tipo === 'mensual');
-}
+function seleccionarPlanSuscripcion(tipo) { selectedPlanTipo = tipo; }
 
 async function simularPagoExitoso() {
     try {
@@ -188,6 +188,7 @@ function showDashboard() {
     if (!canvasInitialized) { initCanvas(); canvasInitialized = true; }
 }
 
+// --- PLANTILLAS Y JUGADORES ---
 let activePlantillaId = null;
 let activePlantillaData = null;
 let editingPlayerIndex = null;
@@ -214,6 +215,35 @@ async function crearPlantilla() {
     } catch (e) {
         showToast("Error al guardar plantilla", "error");
     }
+}
+
+function autocompletarEquipo() {
+    const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
+    if (!plantilla) return showToast("Selecciona una plantilla primero", "error");
+
+    const posiciones = SPORT_POSITIONS[plantilla.deporte] || [];
+    const nombresAuto = ["Carlos López", "Mateo Gómez", "Luis Hernández", "Gabriel Torres", "Andrés Ríos", "Javier Silva"];
+
+    nombresAuto.forEach((nom, i) => {
+        // Se respeta el límite de 15 del plan básico
+        if (currentUser.plan === 'basica' && plantilla.jugadores.length >= 15) return;
+        const pos = posiciones[i % posiciones.length];
+        const est = 1.75 + (i * 0.02);
+        const peso = 70 + (i * 2);
+        const defPos = (DEFAULT_POSITION_COORDS[plantilla.deporte] || {})[pos] || {x:50, y:50};
+
+        plantilla.jugadores.push({
+            name: nom, estatura: est.toFixed(2), peso: peso, posicion: pos,
+            vel: 75 + (i*2), fue: 70 + i, res: 80 - i, tec: 78,
+            imc: (peso / (est * est)).toFixed(1), promedio: 76,
+            x: defPos.x, y: defPos.y
+        });
+    });
+
+    guardarPlantillaActualizada().then(() => {
+        renderJugadores();
+        showToast("Plantilla autocompletada con datos inteligentes.");
+    });
 }
 
 function selectPlantilla(id) { activePlantillaId = id; cancelarEdicion(); renderPlantillasList(); renderJugadores(); }
@@ -252,7 +282,6 @@ async function eliminarPlantilla(id, event) {
 async function guardarPlantillaActualizada() {
     const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
     if(plantilla) {
-        // Copiamos datos para no guardar el ID dentro del doc
         const { id, ...dataToSave } = plantilla;
         await db.collection('users').doc(currentUser.uid).collection('plantillas').doc(id).set(dataToSave);
     }
@@ -281,7 +310,6 @@ async function guardarJugador() {
     };
 
     if (editingPlayerIndex !== null) {
-        // Preservar coordenadas existentes
         jData.x = plantilla.jugadores[editingPlayerIndex].x;
         jData.y = plantilla.jugadores[editingPlayerIndex].y;
         plantilla.jugadores[editingPlayerIndex] = jData;
@@ -354,7 +382,7 @@ async function eliminarJugador(idx) {
     }
 }
 
-// === LÓGICA DE HOJA DE CÁLCULO ===
+// --- HOJA DE CÁLCULO ---
 function colALetra(index) {
     let letra = ''; while (index >= 0) { letra = String.fromCharCode((index % 26) + 65) + letra; index = Math.floor(index / 26) - 1; }
     return letra;
@@ -443,7 +471,6 @@ function editarCeldaSheet(r, c) {
     td.onblur = guardar; td.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); guardar(); } };
 }
 
-// Escuchar la barra de fórmulas
 document.getElementById('sheetFormulaInput').addEventListener('keyup', function(e) {
     if(e.key === 'Enter') {
         if (!sheetMatrix[selectedR]) sheetMatrix[selectedR] = [];
@@ -473,13 +500,10 @@ async function sincronizarHojaAJugadores() {
     const posiciones = SPORT_POSITIONS[plantilla.deporte] || [];
     let nuevosJugadores = [];
 
-    // Validar y no cortar si es PRO, ni matar las posiciones
     for (let r = 1; r < sheetMatrix.length; r++) {
         const fila = sheetMatrix[r];
         if (!fila || !fila[0] || fila[0].toString().trim() === '') continue;
-        
-        // Ignorar filas que parecen fórmulas en el nombre (e.g. Totales)
-        if (fila[0].toString().startsWith('=')) continue;
+        if (fila[0].toString().startsWith('=')) continue; // Evitar contar las filas de fórmulas
 
         if (currentUser.plan === 'basica' && nuevosJugadores.length >= 15) break;
 
@@ -497,7 +521,6 @@ async function sincronizarHojaAJugadores() {
         const imc = (peso / (estatura * estatura)).toFixed(1);
         const promedio = Math.round((vel + fue + res + tec) / 4);
         
-        // Buscar si ya existía para no perder posiciones X y Y
         let oldPlayer = plantilla.jugadores.find(j => j.name === name);
         const defPos = (DEFAULT_POSITION_COORDS[plantilla.deporte] || {})[posicion] || { x: 50, y: 50 };
 
@@ -515,13 +538,13 @@ async function sincronizarHojaAJugadores() {
     renderCancha(plantilla);
 }
 
-// === PIZARRÓN TÁCTICO ===
+// --- PIZARRÓN TÁCTICO ---
 function initCanvas() {
     const canvas = document.getElementById('drawingCanvas'); ctx = canvas.getContext('2d');
     const resize = () => { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; };
     window.addEventListener('resize', resize); setTimeout(resize, 100);
     
-    // Soporte para touch/punteros
+    // Soporte nativo para pantallas táctiles (Touch/Pen) y Mouse
     canvas.addEventListener('pointerdown', startDrawing); 
     canvas.addEventListener('pointermove', draw);
     canvas.addEventListener('pointerup', stopDrawing); 
@@ -607,7 +630,7 @@ async function resetFormacionOriginal() {
     renderCancha(p); showToast("Formación reiniciada");
 }
 
-// === GRÁFICAS ===
+// --- GRÁFICAS Y PDF ---
 function renderGraficas(plantilla) {
     if (!plantilla || !plantilla.jugadores.length) {
         if (teamChartObj) teamChartObj.destroy(); if (radarChartObj) radarChartObj.destroy(); return;
@@ -666,14 +689,13 @@ function actualizarGraficaRadar() {
         }
     }
 
-    // Custom background para evitar invisibilidad de letras en PDF blanco
     const pluginBg = {
         id: 'customCanvasBackgroundColor',
         beforeDraw: (chart) => {
             const ctx = chart.canvas.getContext('2d');
             ctx.save();
             ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = '#0f172a'; // oscuro para contraste
+            ctx.fillStyle = '#0f172a'; // oscuro para contraste en PDF
             ctx.fillRect(0, 0, chart.width, chart.height);
             ctx.restore();
         }
@@ -699,7 +721,7 @@ async function exportarReportePDF() {
     doc.text("Nombre", 15, 45); doc.text("Posición", 80, 45); doc.text("IMC", 130, 45); doc.text("Promedio", 160, 45);
     doc.line(15, 47, 190, 47);
 
-    // Sin limitante slice(), se agregan saltos de página si es necesario
+    // Renderizamos todos los jugadores, creando nueva página si se llena
     activePlantillaData.jugadores.forEach(j => {
         if (y > 270) { doc.addPage(); y = 20; }
         doc.text(j.name.substring(0,25), 15, y); doc.text(j.posicion.substring(0,15), 80, y);
@@ -743,6 +765,7 @@ function importarExcel(event) {
     reader.readAsArrayBuffer(file);
 }
 
+// --- INTERFAZ ---
 function applyProRestrictions() {
     const isPro = currentUser.plan === 'pro';
     document.getElementById('tabCancha').classList.toggle('pro-locked-overlay', !isPro);

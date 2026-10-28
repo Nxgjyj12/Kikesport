@@ -58,7 +58,7 @@ header {
 label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
 input, select {
     width: 100%; padding: 10px 14px; background: rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--glass-border); border-radius: 8px; color: #fff; font-family: inherit;
+    border: 1px solid var(--glass-border); border-radius: 8px; color: #fff; font-family: inherit; font-size: 14px;
 }
 input:focus, select:focus { outline: none; border-color: var(--neon-green); }
 
@@ -133,16 +133,14 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     width: 90%; max-width: 520px; text-align: center; color: #fff;
 }
 
-.pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; text-align: left; }
+.pricing-grid { display: grid; grid-template-columns: 1fr; gap: 15px; margin: 20px 0; text-align: left; }
 .price-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
 .price-card.active { border-color: var(--pro-gold); background: rgba(251, 191, 36, 0.08); }
 .price-card .price { font-size: 22px; font-weight: 800; color: var(--pro-gold); margin: 5px 0; }
 
 .hidden { display: none !important; }
 
-/* =========================================
-   ESTILOS DE LA LANDING PAGE Y GALERÍA
-========================================== */
+/* LANDING PAGE Y GALERÍA */
 .landing-page-wrapper {
     animation: fadeIn 0.8s ease-out;
     transition: opacity 0.3s ease;
@@ -218,7 +216,6 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     border-color: var(--neon-green);
 }
 
-/* Galería inferior de módulos */
 .landing-gallery {
     margin-top: 40px;
     padding-top: 30px;
@@ -276,17 +273,7 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     line-height: 1.4;
 }
 
-@media(max-width: 900px) {
-    .landing-hero {
-        grid-template-columns: 1fr;
-        text-align: center;
-    }
-    .landing-text h1 { font-size: 2.3rem; }
-    .btn-large { justify-content: center; width: 100%; }
-}
-/* =========================================
-   RESTRICCIONES PLAN PRO Y MEJORAS VISUALES
-========================================== */
+/* RESTRICCIONES PLAN PRO */
 .pro-locked-overlay {
     position: relative;
     pointer-events: none;
@@ -309,10 +296,14 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     font-size: 1.2rem;
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     z-index: 1000;
-    pointer-events: auto; /* Para permitir hacer click si hiciera falta */
+    pointer-events: auto;
 }
 
-/* Ajuste sutil del texto en los inputs para mayor legibilidad */
-input[type="number"], input[type="text"], input[type="email"], input[type="password"], select {
-    font-size: 14px;
+@media(max-width: 900px) {
+    .landing-hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    .landing-text h1 { font-size: 2.3rem; }
+    .btn-large { justify-content: center; width: 100%; }
 }

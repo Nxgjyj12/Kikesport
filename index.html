@@ -11,13 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Librerías Externas con versiones fijas seguras -->
+    <!-- Librerías Externas -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
-    <!-- Firebase App, Auth y Firestore -->
+    <!-- LIBRERÍAS DE FIREBASE -->
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore-compat.js"></script>
@@ -40,7 +40,7 @@
 
     <div class="container">
         
-        <!-- PANTALLA DE PUBLICIDAD -->
+        <!-- PANTALLA DE PUBLICIDAD (LANDING PAGE) -->
         <div id="landingScreen" class="landing-page-wrapper">
             <div class="landing-hero">
                 <div class="landing-text">
@@ -51,6 +51,7 @@
                         <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;"><i class="fa-solid fa-podcast"></i> Escucha el análisis a fondo:</p>
                         <audio controls>
                             <source src="audio/podcast-kikesport.mp3" type="audio/mpeg">
+                            Tu navegador no soporta el elemento de audio.
                         </audio>
                     </div>
 
@@ -90,14 +91,14 @@
             </div>
         </div>
 
-        <!-- PANTALLA AUTH -->
+        <!-- PANTALLA AUTH: REGISTRO E INICIO DE SESIÓN -->
         <div id="authScreen" class="auth-container glass-panel hidden">
             <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--glass-border); padding-bottom:10px;">
                 <button id="tabLoginBtn" class="tab-btn active" style="flex:1;" onclick="mostrarTabAuth('login')">Iniciar Sesión</button>
                 <button id="tabRegisterBtn" class="tab-btn" style="flex:1;" onclick="mostrarTabAuth('register')">Registrarse</button>
             </div>
 
-            <!-- LOGIN -->
+            <!-- INICIAR SESIÓN -->
             <div id="formLogin">
                 <div class="form-group">
                     <label for="authEmail">Correo Electrónico</label>
@@ -135,14 +136,14 @@
                     <input type="checkbox" id="regTerms" style="width:auto; cursor:pointer;">
                     <label for="regTerms" style="margin:0; text-transform:none; font-weight:400;">Acepto los términos de servicio y privacidad.</label>
                 </div>
-                <button class="btn-primary" style="margin-top:10px;" onclick="registrarNuevoUsuario()">Crear Cuenta y Verificar</button>
+                <button class="btn-primary" style="margin-top:10px;" onclick="registrarNuevoUsuario()">Crear Cuenta</button>
             </div>
         </div>
 
         <!-- DASHBOARD PRINCIPAL -->
         <div id="dashboardScreen" class="grid-dashboard hidden">
             
-            <!-- LATERAL -->
+            <!-- LATERAL: PLANTILLAS -->
             <div>
                 <div class="glass-panel">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
@@ -169,7 +170,7 @@
                 </div>
             </div>
 
-            <!-- TABS -->
+            <!-- DERECHA: PESTAÑAS -->
             <div>
                 <div class="tabs">
                     <button class="tab-btn active" onclick="switchTab('jugadores')">Jugadores</button>
@@ -183,6 +184,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                         <h3 id="currentPlantillaTitle">Selecciona una Plantilla</h3>
                         <div style="display:flex; gap:8px;">
+                            <button id="btnAutoFill" class="btn-secondary" style="border-color:var(--neon-green); color:var(--neon-green);" onclick="autocompletarEquipo()"><i class="fa-solid fa-wand-magic-sparkles"></i> Llenado Inteligente</button>
                             <span id="playersCounter" style="font-size:12px; color:var(--text-muted); align-self:center;">0 Jugadores</span>
                         </div>
                     </div>
