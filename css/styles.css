@@ -284,3 +284,35 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     .landing-text h1 { font-size: 2.3rem; }
     .btn-large { justify-content: center; width: 100%; }
 }
+/* =========================================
+   RESTRICCIONES PLAN PRO Y MEJORAS VISUALES
+========================================== */
+.pro-locked-overlay {
+    position: relative;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.4;
+    overflow: hidden;
+}
+
+.pro-locked-overlay::after {
+    content: "🔒 SOLO PLAN PRO";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--pro-gold);
+    color: #000;
+    padding: 15px 30px;
+    font-weight: 800;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    z-index: 1000;
+    pointer-events: auto; /* Para permitir hacer click si hiciera falta */
+}
+
+/* Ajuste sutil del texto en los inputs para mayor legibilidad */
+input[type="number"], input[type="text"], input[type="email"], input[type="password"], select {
+    font-size: 14px;
+}

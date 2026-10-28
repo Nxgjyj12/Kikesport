@@ -11,6 +11,11 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Configuración global Chart.js para contraste
+Chart.defaults.color = '#cbd5e1';
+Chart.defaults.font.family = 'Poppins';
 
 function sanitizeHTML(str) {
     const div = document.createElement('div');
@@ -27,24 +32,15 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-function getUsersDB() { return JSON.parse(localStorage.getItem('kikesport_users_db')) || []; }
-function saveUsersDB(users) { localStorage.setItem('kikesport_users_db', JSON.stringify(users)); }
-
 function mostrarTabAuth(tab) {
-    if (tab === 'login') {
-        document.getElementById('formLogin').classList.remove('hidden');
-        document.getElementById('formRegister').classList.add('hidden');
-        document.getElementById('tabLoginBtn').classList.add('active');
-        document.getElementById('tabRegisterBtn').classList.remove('active');
-    } else {
-        document.getElementById('formLogin').classList.add('hidden');
-        document.getElementById('formRegister').classList.remove('hidden');
-        document.getElementById('tabLoginBtn').classList.remove('active');
-        document.getElementById('tabRegisterBtn').classList.add('active');
-    }
+    document.getElementById('formLogin').classList.toggle('hidden', tab !== 'login');
+    document.getElementById('formRegister').classList.toggle('hidden', tab !== 'register');
+    document.getElementById('tabLoginBtn').classList.toggle('active', tab === 'login');
+    document.getElementById('tabRegisterBtn').classList.toggle('active', tab === 'register');
 }
 
 let currentUser = null;
+let localPlantillas = [];
 let selectedPlanTipo = 'mensual';
 
 function registrarNuevoUsuario() {
@@ -52,81 +48,89 @@ function registrarNuevoUsuario() {
     const email = document.getElementById('regEmail').value.trim();
     const pass = document.getElementById('regPassword').value.trim();
     const confirmPass = document.getElementById('regConfirmPassword').value.trim();
-    const plan = document.getElementById('regPlan').value;
+    const terms = document.getElementById('regTerms').checked;
 
-    if (!username || !email || !pass || !confirmPass) return showToast("Completa todos los campos", "error");
+    if (!username || !email || !pass) return showToast("Completa todos los campos", "error");
+    if (!terms) return showToast("Debes aceptar los términos y privacidad", "error");
     if (pass !== confirmPass) return showToast("Las contraseñas no coinciden", "error");
-    if (pass.length < 6) return showToast("La contraseña debe tener al menos 6 caracteres", "error");
+    if (pass.length < 6) return showToast("Contraseña muy corta (min. 6)", "error");
 
     auth.createUserWithEmailAndPassword(email, pass)
-        .then((userCredential) => {
-            userCredential.user.sendEmailVerification()
-                .then(() => {
-                    const users = getUsersDB();
-                    users.push({ email: email.toLowerCase(), username, plan, planTipo: plan === 'pro' ? 'mensual' : 'gratuito' });
-                    saveUsersDB(users);
-                    
-                    showToast("Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta antes de acceder.");
-                    auth.signOut(); 
-                    mostrarTabAuth('login');
-                });
+        .then(async (userCredential) => {
+            const uid = userCredential.user.uid;
+            await db.collection('users').doc(uid).set({
+                email: email.toLowerCase(),
+                username: username, // Se guarda crudo, se sanitiza al renderizar
+                plan: 'basica',
+                planTipo: 'gratuito'
+            });
+            await userCredential.user.sendEmailVerification();
+            showToast("Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta.");
+            auth.signOut(); 
+            mostrarTabAuth('login');
         })
-        .catch((error) => {
-            if (error.code === 'auth/email-already-in-use') showToast("El correo ya está registrado", "error");
-            else showToast("Error al registrar: " + error.message, "error");
-        });
+        .catch(error => showToast("Error al registrar: " + error.message, "error"));
 }
 
 function iniciarSesion() {
     const email = document.getElementById('authEmail').value.trim();
     const pass = document.getElementById('authPassword').value.trim();
-
     if (!email || !pass) return showToast("Ingresa tu correo y contraseña", "error");
 
+    // No llamamos cargarDatosUsuario aquí, onAuthStateChanged se encarga.
     auth.signInWithEmailAndPassword(email, pass)
-        .then((userCredential) => {
+        .then(userCredential => {
             if (!userCredential.user.emailVerified) {
                 showToast("Por favor verifica tu correo electrónico antes de ingresar.", "error");
                 auth.signOut();
-            } else {
-                cargarDatosUsuario(userCredential.user.email);
             }
         })
-        .catch((error) => {
-            showToast("Correo o contraseña incorrectos", "error");
-        });
+        .catch(() => showToast("Correo o contraseña incorrectos", "error"));
 }
 
-function cargarDatosUsuario(email) {
-    const users = getUsersDB();
-    const localData = users.find(u => u.email === email.toLowerCase());
-    
-    if (localData) {
-        currentUser = localData;
-    } else {
-        currentUser = { email: email.toLowerCase(), username: email.split('@')[0], plan: 'basica', planTipo: 'gratuito' };
-        users.push(currentUser);
-        saveUsersDB(users);
-    }
-    
-    document.getElementById('landingScreen').classList.add('hidden');
-    document.getElementById('authScreen').classList.add('hidden');
-    
-    showDashboard();
-    showToast(`¡Bienvenido ${sanitizeHTML(currentUser.username)}!`);
+function recuperarPassword() {
+    const email = document.getElementById('authEmail').value.trim();
+    if(!email) return showToast("Ingresa tu correo para recuperar la contraseña", "error");
+    auth.sendPasswordResetEmail(email)
+        .then(() => showToast("Correo de recuperación enviado."))
+        .catch(error => showToast(error.message, "error"));
 }
 
-auth.onAuthStateChanged((user) => {
+auth.onAuthStateChanged(async (user) => {
     if (user && user.emailVerified) {
-        cargarDatosUsuario(user.email);
+        await cargarDatosUsuario(user);
     }
 });
 
+async function cargarDatosUsuario(user) {
+    try {
+        const docRef = await db.collection('users').doc(user.uid).get();
+        if (docRef.exists) {
+            currentUser = { uid: user.uid, ...docRef.data() };
+        } else {
+            // Backup por si se eliminó el documento
+            currentUser = { uid: user.uid, email: user.email, username: user.email.split('@')[0], plan: 'basica', planTipo: 'gratuito' };
+            await db.collection('users').doc(user.uid).set(currentUser);
+        }
+        await cargarPlantillasFirestore();
+        
+        document.getElementById('landingScreen').classList.add('hidden');
+        document.getElementById('authScreen').classList.add('hidden');
+        
+        showDashboard();
+        showToast(`¡Bienvenido ${sanitizeHTML(currentUser.username)}!`);
+    } catch (e) {
+        showToast("Error conectando con la base de datos.", "error");
+    }
+}
+
+async function cargarPlantillasFirestore() {
+    const snapshot = await db.collection('users').doc(currentUser.uid).collection('plantillas').get();
+    localPlantillas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
 function logout() { 
-    auth.signOut().then(() => {
-        currentUser = null;
-        location.reload(); 
-    });
+    auth.signOut().then(() => { currentUser = null; localPlantillas = []; location.reload(); });
 }
 
 const SPORT_POSITIONS = {
@@ -144,10 +148,10 @@ const DEFAULT_POSITION_COORDS = {
 };
 
 const SPORT_COURT_SVGS = {
-    Futbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="none"><rect width="600" height="350" fill="#15803d"/><rect x="20" y="20" width="560" height="310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><line x1="300" y1="20" x2="300" y2="330" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="50" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="4" fill="#ffffff"/><rect x="20" y="85" width="90" height="180" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="20" y="125" width="35" height="100" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="490" y="85" width="90" height="180" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="545" y="125" width="35" height="100" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/></svg>`,
-    Basquetbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="none"><rect width="600" height="350" fill="#9a3412"/><rect x="20" y="20" width="560" height="310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><line x1="300" y1="20" x2="300" y2="330" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="40" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="20" y="115" width="110" height="120" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="3" opacity="0.85"/><path d="M 20,40 A 150,150 0 0,1 20,310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="470" y="115" width="110" height="120" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="3" opacity="0.85"/><path d="M 580,40 A 150,150 0 0,0 580,310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/></svg>`,
-    Voleybol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="none"><rect width="600" height="350" fill="#0f172a"/><rect x="20" y="20" width="560" height="310" fill="#1e40af" stroke="#ffffff" stroke-width="3" opacity="0.9"/><line x1="300" y1="15" x2="300" y2="335" stroke="#fbbf24" stroke-width="5" opacity="0.9"/><line x1="207" y1="20" x2="207" y2="330" stroke="#ffffff" stroke-width="3" stroke-dasharray="6,4" opacity="0.85"/><line x1="393" y1="20" x2="393" y2="330" stroke="#ffffff" stroke-width="3" stroke-dasharray="6,4" opacity="0.85"/></svg>`,
-    Beisbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="none"><rect width="600" height="350" fill="#166534"/><path d="M 50,20 L 300,310 L 550,20 Z" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/><path d="M 50,80 Q 300,-30 550,80" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><polygon points="300,310 420,210 300,110 180,210" fill="#7c2d12" stroke="#ffffff" stroke-width="2" opacity="0.85"/><circle cx="300" cy="210" r="18" fill="#a16207" stroke="#ffffff" stroke-width="2"/><rect x="294" y="208" width="12" height="4" fill="#ffffff"/><polygon points="300,315 293,308 293,302 307,302 307,308" fill="#ffffff"/><rect x="414" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 420 210)"/><rect x="294" y="104" width="12" height="12" fill="#ffffff" transform="rotate(45 300 110)"/><rect x="174" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 180 210)"/></svg>`
+    Futbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="xMidYMid slice"><rect width="600" height="350" fill="#15803d"/><rect x="20" y="20" width="560" height="310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><line x1="300" y1="20" x2="300" y2="330" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="50" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="4" fill="#ffffff"/><rect x="20" y="85" width="90" height="180" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="20" y="125" width="35" height="100" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="490" y="85" width="90" height="180" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="545" y="125" width="35" height="100" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/></svg>`,
+    Basquetbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="xMidYMid slice"><rect width="600" height="350" fill="#9a3412"/><rect x="20" y="20" width="560" height="310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><line x1="300" y1="20" x2="300" y2="330" stroke="#ffffff" stroke-width="3" opacity="0.85"/><circle cx="300" cy="175" r="40" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="20" y="115" width="110" height="120" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="3" opacity="0.85"/><path d="M 20,40 A 150,150 0 0,1 20,310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><rect x="470" y="115" width="110" height="120" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="3" opacity="0.85"/><path d="M 580,40 A 150,150 0 0,0 580,310" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/></svg>`,
+    Voleybol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="xMidYMid slice"><rect width="600" height="350" fill="#0f172a"/><rect x="20" y="20" width="560" height="310" fill="#1e40af" stroke="#ffffff" stroke-width="3" opacity="0.9"/><line x1="300" y1="15" x2="300" y2="335" stroke="#fbbf24" stroke-width="5" opacity="0.9"/><line x1="207" y1="20" x2="207" y2="330" stroke="#ffffff" stroke-width="3" stroke-dasharray="6,4" opacity="0.85"/><line x1="393" y1="20" x2="393" y2="330" stroke="#ffffff" stroke-width="3" stroke-dasharray="6,4" opacity="0.85"/></svg>`,
+    Beisbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="xMidYMid slice"><rect width="600" height="350" fill="#166534"/><path d="M 50,20 L 300,310 L 550,20 Z" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/><path d="M 50,80 Q 300,-30 550,80" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><polygon points="300,310 420,210 300,110 180,210" fill="#7c2d12" stroke="#ffffff" stroke-width="2" opacity="0.85"/><circle cx="300" cy="210" r="18" fill="#a16207" stroke="#ffffff" stroke-width="2"/><rect x="294" y="208" width="12" height="4" fill="#ffffff"/><polygon points="300,315 293,308 293,302 307,302 307,308" fill="#ffffff"/><rect x="414" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 420 210)"/><rect x="294" y="104" width="12" height="12" fill="#ffffff" transform="rotate(45 300 110)"/><rect x="174" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 180 210)"/></svg>`
 };
 
 function abrirModalSuscripcion() { document.getElementById('modalSuscripcion').classList.remove('hidden'); }
@@ -156,28 +160,24 @@ function cerrarModalSuscripcion() { document.getElementById('modalSuscripcion').
 function seleccionarPlanSuscripcion(tipo) {
     selectedPlanTipo = tipo;
     document.getElementById('cardPlanMensual').classList.toggle('active', tipo === 'mensual');
-    document.getElementById('cardPlanAnual').classList.toggle('active', tipo === 'anual');
 }
 
-function confirmarSuscripcionPro() {
-    currentUser.plan = 'pro';
-    currentUser.planTipo = selectedPlanTipo;
-    
-    const users = getUsersDB();
-    const index = users.findIndex(u => u.email === currentUser.email);
-    if(index !== -1) users[index] = currentUser;
-    saveUsersDB(users);
-
-    cerrarModalSuscripcion();
-    showDashboard();
-    const precioText = selectedPlanTipo === 'mensual' ? '$125 MXN/mes' : '$1,200 MXN/año';
-    showToast(`¡Suscripción PRO Activada (${precioText})!`);
+async function simularPagoExitoso() {
+    try {
+        await db.collection('users').doc(currentUser.uid).update({ plan: 'pro', planTipo: selectedPlanTipo });
+        currentUser.plan = 'pro';
+        currentUser.planTipo = selectedPlanTipo;
+        cerrarModalSuscripcion();
+        showDashboard();
+        showToast("¡Pago simulado! Suscripción PRO Activada.");
+    } catch (e) {
+        showToast("Error al actualizar suscripción", "error");
+    }
 }
+
+let canvasInitialized = false;
 
 function showDashboard() {
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('landingScreen').classList.add('hidden');
-    document.getElementById('dashboardScreen').classList.remove('hidden');
     document.getElementById('userHeaderInfo').classList.remove('hidden');
     document.getElementById('userNameDisplay').innerText = sanitizeHTML(currentUser.username);
     
@@ -187,11 +187,8 @@ function showDashboard() {
     
     renderPlantillasList();
     applyProRestrictions();
-    initCanvas();
+    if (!canvasInitialized) { initCanvas(); canvasInitialized = true; }
 }
-
-function getPlantillasDB() { return JSON.parse(localStorage.getItem(`db_${currentUser.email}`)) || []; }
-function savePlantillasDB(data) { localStorage.setItem(`db_${currentUser.email}`, JSON.stringify(data)); }
 
 let activePlantillaId = null;
 let activePlantillaData = null;
@@ -201,81 +198,70 @@ let selectedR = 0, selectedC = 0;
 let teamChartObj = null, radarChartObj = null;
 let isDrawingMode = false, isDrawing = false, ctx = null;
 
-function crearPlantilla() {
-    const plantillas = getPlantillasDB();
-    if (currentUser.plan === 'basica' && plantillas.length >= 1) return showToast("Plan Básico: Máximo 1 plantilla. Mejora a PRO por $125/mes.", "error");
+async function crearPlantilla() {
+    if (currentUser.plan === 'basica' && localPlantillas.length >= 1) return showToast("Plan Básico: Máximo 1 plantilla.", "error");
     
     const name = document.getElementById('newPlantillaName').value.trim();
     if (!name) return showToast("Ingresa un nombre para el equipo", "error");
     
-    const newP = { id: Date.now(), name: sanitizeHTML(name), deporte: document.getElementById('newPlantillaSport').value, jugadores: [] };
-    plantillas.push(newP); savePlantillasDB(plantillas);
-    document.getElementById('newPlantillaName').value = '';
-    showToast("Plantilla creada exitosamente");
-    selectPlantilla(newP.id);
-}
-
-function autocompletarEquipo() {
-    const plantillas = getPlantillasDB();
-    const plantilla = plantillas.find(p => p.id === activePlantillaId);
-    if (!plantilla) return showToast("Selecciona una plantilla primero", "error");
-
-    const posiciones = SPORT_POSITIONS[plantilla.deporte] || [];
-    const nombresAuto = ["Carlos López", "Mateo Gómez", "Luis Hernández", "Gabriel Torres", "Andrés Ríos", "Javier Silva"];
-
-    nombresAuto.forEach((nom, i) => {
-        if (currentUser.plan === 'basica' && plantilla.jugadores.length >= 15) return;
-        const pos = posiciones[i % posiciones.length];
-        const est = 1.75 + (i * 0.02);
-        const peso = 70 + (i * 2);
-        const defPos = (DEFAULT_POSITION_COORDS[plantilla.deporte] || {})[pos] || {x:50, y:50};
-
-        plantilla.jugadores.push({
-            name: nom, estatura: est.toFixed(2), peso: peso, posicion: pos,
-            vel: 75 + (i*2), fue: 70 + i, res: 80 - i, tec: 78,
-            imc: (peso / (est * est)).toFixed(1), promedio: 76,
-            x: defPos.x, y: defPos.y
-        });
-    });
-
-    savePlantillasDB(plantillas);
-    renderJugadores();
-    showToast("Plantilla autocompletada con datos inteligentes.");
+    const newId = Date.now().toString();
+    const newP = { name: name, deporte: document.getElementById('newPlantillaSport').value, jugadores: [] };
+    
+    try {
+        await db.collection('users').doc(currentUser.uid).collection('plantillas').doc(newId).set(newP);
+        localPlantillas.push({ id: newId, ...newP });
+        document.getElementById('newPlantillaName').value = '';
+        showToast("Plantilla creada exitosamente");
+        selectPlantilla(newId);
+    } catch (e) {
+        showToast("Error al guardar plantilla", "error");
+    }
 }
 
 function selectPlantilla(id) { activePlantillaId = id; cancelarEdicion(); renderPlantillasList(); renderJugadores(); }
 
 function renderPlantillasList() {
-    const plantillas = getPlantillasDB();
-    document.getElementById('plantillasCounter').innerText = `${plantillas.length}/${currentUser.plan==='basica'?1:'∞'}`;
+    document.getElementById('plantillasCounter').innerText = `${localPlantillas.length}/${currentUser.plan==='basica'?1:'∞'}`;
     const container = document.getElementById('plantillasList'); container.innerHTML = '';
     
-    if (plantillas.length === 0) { container.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">No hay plantillas.</div>'; return; }
-    if (!activePlantillaId) activePlantillaId = plantillas[0].id;
+    if (localPlantillas.length === 0) { container.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">No hay plantillas.</div>'; return; }
+    if (!activePlantillaId || !localPlantillas.find(p=>p.id === activePlantillaId)) activePlantillaId = localPlantillas[0].id;
 
-    plantillas.forEach(p => {
+    localPlantillas.forEach(p => {
         container.innerHTML += `
-            <div class="plantilla-card ${p.id === activePlantillaId ? 'active' : ''}" onclick="selectPlantilla(${p.id})">
-                <div><div style="font-weight:700;">${sanitizeHTML(p.name)}</div><div style="font-size:12px; color:var(--text-muted);">${p.deporte} • ${p.jugadores.length} Atletas</div></div>
-                <button class="action-btn-small" style="color:var(--danger-red); border-color:var(--danger-red);" onclick="eliminarPlantilla(${p.id}, event)">🗑️</button>
+            <div class="plantilla-card ${p.id === activePlantillaId ? 'active' : ''}" onclick="selectPlantilla('${p.id}')">
+                <div><div style="font-weight:700;">${sanitizeHTML(p.name)}</div><div style="font-size:12px; color:var(--text-muted);">${sanitizeHTML(p.deporte)} • ${p.jugadores.length} Atletas</div></div>
+                <button class="action-btn-small" style="color:var(--danger-red); border-color:var(--danger-red);" onclick="eliminarPlantilla('${p.id}', event)">🗑️</button>
             </div>`;
     });
 }
 
-function eliminarPlantilla(id, event) {
+async function eliminarPlantilla(id, event) {
     event.stopPropagation();
     if (confirm("¿Deseas eliminar completamente esta plantilla?")) {
-        let plantillas = getPlantillasDB().filter(p => p.id !== id);
-        savePlantillasDB(plantillas);
-        activePlantillaId = plantillas.length > 0 ? plantillas[0].id : null;
-        renderPlantillasList(); renderJugadores();
-        showToast("Plantilla eliminada");
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('plantillas').doc(id).delete();
+            localPlantillas = localPlantillas.filter(p => p.id !== id);
+            activePlantillaId = localPlantillas.length > 0 ? localPlantillas[0].id : null;
+            renderPlantillasList(); renderJugadores();
+            showToast("Plantilla eliminada");
+        } catch(e) {
+            showToast("Error al eliminar", "error");
+        }
     }
 }
 
-function guardarJugador() {
-    const plantillas = getPlantillasDB();
-    const plantilla = plantillas.find(p => p.id === activePlantillaId);
+async function guardarPlantillaActualizada() {
+    const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
+    if(plantilla) {
+        // Copiamos datos para no guardar el ID dentro del doc
+        const { id, ...dataToSave } = plantilla;
+        await db.collection('users').doc(currentUser.uid).collection('plantillas').doc(id).set(dataToSave);
+    }
+}
+
+async function guardarJugador() {
+    const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
     if (!plantilla) return;
 
     const name = document.getElementById('playerName').value.trim();
@@ -287,15 +273,20 @@ function guardarJugador() {
     const tec = parseInt(document.getElementById('statTec').value) || 0;
 
     if (!name || !est || !peso) return showToast("Ingresa datos físicos válidos", "error");
+    if (est < 1.0 || est > 2.5) return showToast("Estatura fuera de rango (1.0 - 2.5m)", "error");
+    if (peso < 30 || peso > 200) return showToast("Peso fuera de rango (30 - 200kg)", "error");
     if ([vel, fue, res, tec].some(v => v < 0 || v > 100)) return showToast("Atributos deben estar entre 0 y 100", "error");
 
     const jData = {
-        name: sanitizeHTML(name), estatura: est, peso, posicion: document.getElementById('playerPosition').value,
+        name: name, estatura: est, peso, posicion: document.getElementById('playerPosition').value,
         vel, fue, res, tec, imc: (peso / (est * est)).toFixed(1), promedio: Math.round((vel+fue+res+tec)/4)
     };
 
     if (editingPlayerIndex !== null) {
-        Object.assign(plantilla.jugadores[editingPlayerIndex], jData);
+        // Preservar coordenadas existentes
+        jData.x = plantilla.jugadores[editingPlayerIndex].x;
+        jData.y = plantilla.jugadores[editingPlayerIndex].y;
+        plantilla.jugadores[editingPlayerIndex] = jData;
         showToast("Atleta actualizado");
     } else {
         if (currentUser.plan === 'basica' && plantilla.jugadores.length >= 15) return showToast("Límite Básico (15 atletas) alcanzado.", "error");
@@ -304,29 +295,31 @@ function guardarJugador() {
         plantilla.jugadores.push(jData);
         showToast("Atleta registrado");
     }
-    savePlantillasDB(plantillas); cancelarEdicion(); renderJugadores();
+    
+    await guardarPlantillaActualizada();
+    cancelarEdicion(); renderJugadores();
 }
 
 function renderJugadores() {
-    const plantilla = getPlantillasDB().find(p => p.id === activePlantillaId);
+    const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
     const formBox = document.getElementById('playerFormBox');
     const playersList = document.getElementById('playersList');
 
-    if (!plantilla) { formBox.classList.add('hidden'); playersList.innerHTML = ''; return; }
+    if (!plantilla) { formBox.classList.add('hidden'); playersList.innerHTML = ''; activePlantillaData = null; return; }
     activePlantillaData = plantilla;
-    document.getElementById('currentPlantillaTitle').innerText = `${sanitizeHTML(plantilla.name)} (${plantilla.deporte})`;
+    document.getElementById('currentPlantillaTitle').innerText = `${sanitizeHTML(plantilla.name)} (${sanitizeHTML(plantilla.deporte)})`;
     document.getElementById('playersCounter').innerText = `${plantilla.jugadores.length} Atletas`;
     
     formBox.classList.remove('hidden');
     const posSelect = document.getElementById('playerPosition'); posSelect.innerHTML = '';
-    (SPORT_POSITIONS[plantilla.deporte] || []).forEach(pos => posSelect.innerHTML += `<option value="${pos}">${pos}</option>`);
+    (SPORT_POSITIONS[plantilla.deporte] || []).forEach(pos => posSelect.innerHTML += `<option value="${sanitizeHTML(pos)}">${sanitizeHTML(pos)}</option>`);
 
     playersList.innerHTML = '';
     plantilla.jugadores.forEach((j, idx) => {
         playersList.innerHTML += `
             <div style="background:rgba(0,0,0,0.4); padding:10px 15px; border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <strong style="color:#fff;">#${idx+1} ${j.name}</strong> <span style="font-size:11px; color:var(--neon-green)">(${j.posicion})</span>
+                    <strong style="color:#fff;">#${idx+1} ${sanitizeHTML(j.name)}</strong> <span style="font-size:11px; color:var(--neon-green)">(${sanitizeHTML(j.posicion)})</span>
                     <div style="font-size:11px; color:var(--text-muted);">${j.estatura}m | ${j.peso}kg | IMC: ${j.imc} | VEL:${j.vel} FUE:${j.fue} RES:${j.res} TEC:${j.tec}</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -355,14 +348,15 @@ function cancelarEdicion() {
     ['playerName','playerHeight','playerWeight','statVel','statFue','statRes','statTec'].forEach(id => document.getElementById(id).value = '');
 }
 
-function eliminarJugador(idx) {
+async function eliminarJugador(idx) {
     if (confirm("¿Deseas eliminar a este atleta?")) {
-        let plantillas = getPlantillasDB();
-        plantillas.find(p => p.id === activePlantillaId).jugadores.splice(idx, 1);
-        savePlantillasDB(plantillas); renderJugadores(); showToast("Atleta eliminado");
+        localPlantillas.find(p => p.id === activePlantillaId).jugadores.splice(idx, 1);
+        await guardarPlantillaActualizada();
+        renderJugadores(); showToast("Atleta eliminado");
     }
 }
 
+// === LÓGICA DE HOJA DE CÁLCULO ===
 function colALetra(index) {
     let letra = ''; while (index >= 0) { letra = String.fromCharCode((index % 26) + 65) + letra; index = Math.floor(index / 26) - 1; }
     return letra;
@@ -451,32 +445,43 @@ function editarCeldaSheet(r, c) {
     td.onblur = guardar; td.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); guardar(); } };
 }
 
+// Escuchar la barra de fórmulas
+document.getElementById('sheetFormulaInput').addEventListener('keyup', function(e) {
+    if(e.key === 'Enter') {
+        if (!sheetMatrix[selectedR]) sheetMatrix[selectedR] = [];
+        sheetMatrix[selectedR][selectedC] = this.value;
+        renderHojaCalculo();
+        sincronizarHojaAJugadores();
+    }
+});
+
 function agregarFilaSheet() {
     const cols = sheetMatrix[0] ? sheetMatrix[0].length : 9;
     sheetMatrix.push(new Array(cols).fill(''));
     renderHojaCalculo();
-    seleccionarCeldaSheet(sheetMatrix.length - 1, selectedC);
 }
 
 function eliminarFilaSheet() {
     if (sheetMatrix.length <= 1) return;
     sheetMatrix.splice(selectedR, 1);
     renderHojaCalculo();
-    seleccionarCeldaSheet(Math.max(0, selectedR - 1), selectedC);
     sincronizarHojaAJugadores();
 }
 
-function sincronizarHojaAJugadores() {
-    const plantillas = getPlantillasDB();
-    const plantilla = plantillas.find(p => p.id === activePlantillaId);
+async function sincronizarHojaAJugadores() {
+    const plantilla = localPlantillas.find(p => p.id === activePlantillaId);
     if (!plantilla) return;
 
     const posiciones = SPORT_POSITIONS[plantilla.deporte] || [];
     let nuevosJugadores = [];
 
+    // Validar y no cortar si es PRO, ni matar las posiciones
     for (let r = 1; r < sheetMatrix.length; r++) {
         const fila = sheetMatrix[r];
         if (!fila || !fila[0] || fila[0].toString().trim() === '') continue;
+        
+        // Ignorar filas que parecen fórmulas en el nombre (e.g. Totales)
+        if (fila[0].toString().startsWith('=')) continue;
 
         if (currentUser.plan === 'basica' && nuevosJugadores.length >= 15) break;
 
@@ -486,30 +491,43 @@ function sincronizarHojaAJugadores() {
         let posicion = fila[3] ? fila[3].toString().trim() : posiciones[0];
         if (!posiciones.includes(posicion)) posicion = posiciones[0];
 
-        const vel = parseInt(fila[4]) || 70;
-        const fue = parseInt(fila[5]) || 70;
-        const res = parseInt(fila[6]) || 70;
-        const tec = parseInt(fila[7]) || 70;
+        const vel = fila[4] !== '' && fila[4] !== undefined ? parseInt(fila[4]) : 70;
+        const fue = fila[5] !== '' && fila[5] !== undefined ? parseInt(fila[5]) : 70;
+        const res = fila[6] !== '' && fila[6] !== undefined ? parseInt(fila[6]) : 70;
+        const tec = fila[7] !== '' && fila[7] !== undefined ? parseInt(fila[7]) : 70;
 
         const imc = (peso / (estatura * estatura)).toFixed(1);
         const promedio = Math.round((vel + fue + res + tec) / 4);
+        
+        // Buscar si ya existía para no perder posiciones X y Y
+        let oldPlayer = plantilla.jugadores.find(j => j.name === name);
         const defPos = (DEFAULT_POSITION_COORDS[plantilla.deporte] || {})[posicion] || { x: 50, y: 50 };
 
-        nuevosJugadores.push({ name, estatura, peso, imc, posicion, vel, fue, res, tec, promedio, x: defPos.x, y: defPos.y });
+        nuevosJugadores.push({ 
+            name, estatura, peso, imc, posicion, vel, fue, res, tec, promedio, 
+            x: oldPlayer ? oldPlayer.x : defPos.x, 
+            y: oldPlayer ? oldPlayer.y : defPos.y 
+        });
     }
 
     plantilla.jugadores = nuevosJugadores;
-    savePlantillasDB(plantillas);
+    await guardarPlantillaActualizada();
     activePlantillaData = plantilla;
     showToast("Sincronización de hoja completada.");
+    renderCancha(plantilla);
 }
 
+// === PIZARRÓN TÁCTICO ===
 function initCanvas() {
     const canvas = document.getElementById('drawingCanvas'); ctx = canvas.getContext('2d');
     const resize = () => { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; };
     window.addEventListener('resize', resize); setTimeout(resize, 100);
-    canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing); canvas.addEventListener('mouseout', stopDrawing);
+    
+    // Soporte para touch/punteros
+    canvas.addEventListener('pointerdown', startDrawing); 
+    canvas.addEventListener('pointermove', draw);
+    canvas.addEventListener('pointerup', stopDrawing); 
+    canvas.addEventListener('pointerout', stopDrawing);
 }
 
 function toggleDrawingMode() {
@@ -519,7 +537,6 @@ function toggleDrawingMode() {
     canvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
     btn.style.borderColor = isDrawingMode ? 'var(--neon-green)' : 'var(--glass-border)';
     btn.style.color = isDrawingMode ? 'var(--neon-green)' : 'var(--text-light)';
-    btn.innerHTML = isDrawingMode ? '<i class="fa-solid fa-pen"></i> Modo Dibujo Activo' : '<i class="fa-solid fa-pen"></i> Dibujar Trazos';
 }
 
 function startDrawing(e) { if (!isDrawingMode) return; isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); }
@@ -527,6 +544,7 @@ function draw(e) { if (!isDrawing || !isDrawingMode) return; ctx.lineWidth = 3; 
 function stopDrawing() { isDrawing = false; }
 
 async function exportarCanchaPNG() {
+    if (currentUser.plan !== 'pro') return showToast("Exportación de Pizarrón es solo PRO", "error");
     const court = document.getElementById('courtArea');
     try {
         const canvas = await html2canvas(court, { backgroundColor: '#000' });
@@ -568,28 +586,30 @@ function habilitarArrastreNodo(node, index) {
         let y = Math.max(4, Math.min(96, ((e.clientY - rect.top) / rect.height) * 100));
         node.style.left = `${x}%`; node.style.top = `${y}%`;
     });
-    node.addEventListener('pointerup', (e) => {
+    node.addEventListener('pointerup', async (e) => {
         if (!dragging) return; dragging = false; node.releasePointerCapture(e.pointerId);
         const rect = document.getElementById('courtArea').getBoundingClientRect();
-        const plantillas = getPlantillasDB();
-        const p = plantillas.find(item => item.id === activePlantillaId);
+        const p = localPlantillas.find(item => item.id === activePlantillaId);
         if (p && p.jugadores[index]) {
             p.jugadores[index].x = Math.max(4, Math.min(96, ((e.clientX - rect.left) / rect.width) * 100));
             p.jugadores[index].y = Math.max(4, Math.min(96, ((e.clientY - rect.top) / rect.height) * 100));
-            savePlantillasDB(plantillas); activePlantillaData = p;
+            await guardarPlantillaActualizada();
+            activePlantillaData = p;
         }
     });
 }
 
-function resetFormacionOriginal() {
+async function resetFormacionOriginal() {
     if(ctx) ctx.clearRect(0, 0, document.getElementById('drawingCanvas').width, document.getElementById('drawingCanvas').height);
-    const plantillas = getPlantillasDB(); const p = plantillas.find(i => i.id === activePlantillaId);
+    const p = localPlantillas.find(i => i.id === activePlantillaId);
     if (!p) return;
     const defMap = DEFAULT_POSITION_COORDS[p.deporte] || {};
     p.jugadores.forEach(j => { j.x = defMap[j.posicion]?.x || 50; j.y = defMap[j.posicion]?.y || 50; });
-    savePlantillasDB(plantillas); renderCancha(p); showToast("Formación reiniciada");
+    await guardarPlantillaActualizada();
+    renderCancha(p); showToast("Formación reiniciada");
 }
 
+// === GRÁFICAS ===
 function renderGraficas(plantilla) {
     if (!plantilla || !plantilla.jugadores.length) {
         if (teamChartObj) teamChartObj.destroy(); if (radarChartObj) radarChartObj.destroy(); return;
@@ -648,10 +668,24 @@ function actualizarGraficaRadar() {
         }
     }
 
+    // Custom background para evitar invisibilidad de letras en PDF blanco
+    const pluginBg = {
+        id: 'customCanvasBackgroundColor',
+        beforeDraw: (chart) => {
+            const ctx = chart.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0f172a'; // oscuro para contraste
+            ctx.fillRect(0, 0, chart.width, chart.height);
+            ctx.restore();
+        }
+    };
+
     if (radarChartObj) radarChartObj.destroy();
     radarChartObj = new Chart(document.getElementById('chartPlayerRadar'), {
         type: 'radar', data: { labels: ['Vel', 'Fue', 'Res', 'Tec'], datasets },
-        options: { scales: { r: { max: 100, pointLabels: {color:'#fff'} } } }
+        plugins: [pluginBg],
+        options: { scales: { r: { max: 100, pointLabels: { color:'#cbd5e1' } } } }
     });
 }
 
@@ -667,7 +701,9 @@ async function exportarReportePDF() {
     doc.text("Nombre", 15, 45); doc.text("Posición", 80, 45); doc.text("IMC", 130, 45); doc.text("Promedio", 160, 45);
     doc.line(15, 47, 190, 47);
 
-    activePlantillaData.jugadores.slice(0, 15).forEach(j => {
+    // Sin limitante slice(), se agregan saltos de página si es necesario
+    activePlantillaData.jugadores.forEach(j => {
+        if (y > 270) { doc.addPage(); y = 20; }
         doc.text(j.name.substring(0,25), 15, y); doc.text(j.posicion.substring(0,15), 80, y);
         doc.text(j.imc.toString(), 130, y); doc.text(j.promedio.toString(), 160, y);
         y += 8;
@@ -675,7 +711,7 @@ async function exportarReportePDF() {
 
     const canvasRadar = document.getElementById('chartPlayerRadar');
     const imgData = canvasRadar.toDataURL('image/png', 1.0);
-    if (y > 180) { doc.addPage(); y = 20; }
+    if (y > 170) { doc.addPage(); y = 20; }
     doc.addImage(imgData, 'PNG', 15, y + 10, 100, 100);
 
     doc.save(`Reporte_${activePlantillaData.name}.pdf`);
@@ -726,7 +762,6 @@ function switchTab(tabName) {
 function irAlRegistro() {
     const landing = document.getElementById('landingScreen');
     landing.style.opacity = '0';
-    
     setTimeout(() => {
         landing.classList.add('hidden');
         const auth = document.getElementById('authScreen');
