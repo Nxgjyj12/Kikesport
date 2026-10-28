@@ -79,7 +79,6 @@ button.btn-secondary:hover { background: #475569; }
 }
 .plantilla-card.active { border-color: var(--neon-green); background: rgba(0, 255, 102, 0.08); }
 
-/* Tabs Nav */
 .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px; overflow-x: auto; }
 .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 6px; white-space: nowrap; }
 .tab-btn.active { background: rgba(0, 255, 102, 0.15); color: var(--neon-green); }
@@ -87,7 +86,6 @@ button.btn-secondary:hover { background: #475569; }
 .action-btn-small { background: transparent; border: 1px solid var(--glass-border); color: var(--text-light); padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
 .action-btn-small:hover { border-color: var(--neon-green); color: var(--neon-green); }
 
-/* Hoja de Cálculo Responsive */
 .sheet-container-wrapper { background: #090d16; border: 1px solid var(--glass-border); border-radius: 10px; overflow: hidden; }
 .sheet-toolbar, .sheet-fx-bar { padding: 10px; border-bottom: 1px solid var(--glass-border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sheet-toolbar { background: rgba(0,0,0,0.4); }
@@ -99,7 +97,6 @@ table.internal-sheet th { background: #1e293b; color: var(--text-muted); positio
 table.internal-sheet td { background: rgba(0,0,0,0.2); color: #fff; cursor: cell; }
 table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !important; border: 2px solid var(--neon-green) !important; }
 
-/* Pizarrón Táctico */
 .court-container {
     width: 100%; height: 460px; border-radius: 12px; position: relative;
     border: 2px solid #334155; overflow: hidden; margin-top: 15px;
@@ -121,7 +118,6 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
     margin-top: 3px; white-space: nowrap; border: 1px solid var(--glass-border); pointer-events: none;
 }
 
-/* Modales y Planes */
 .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
 .toast { background: #1e293b; color: #fff; padding: 12px 20px; border-radius: 8px; border-left: 4px solid var(--neon-green); box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: slideIn 0.3s ease; }
 .toast.error { border-left-color: var(--danger-red); }
@@ -143,3 +139,148 @@ table.internal-sheet td.selected-cell { background: rgba(0, 255, 102, 0.2) !impo
 .price-card .price { font-size: 22px; font-weight: 800; color: var(--pro-gold); margin: 5px 0; }
 
 .hidden { display: none !important; }
+
+/* =========================================
+   ESTILOS DE LA LANDING PAGE Y GALERÍA
+========================================== */
+.landing-page-wrapper {
+    animation: fadeIn 0.8s ease-out;
+    transition: opacity 0.3s ease;
+}
+
+.landing-hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+    min-height: 60vh;
+    padding: 20px 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.landing-text h1 {
+    font-size: 3.2rem;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    font-weight: 800;
+}
+
+.highlight-green {
+    color: var(--neon-green);
+    text-shadow: 0 0 20px rgba(0, 255, 102, 0.4);
+}
+
+.landing-text p {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    margin-bottom: 25px;
+    line-height: 1.6;
+}
+
+.audio-player {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 12px 15px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 25px;
+    display: inline-block;
+}
+
+.btn-large {
+    font-size: 1.2rem;
+    padding: 15px 30px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 10px 20px rgba(0, 255, 102, 0.2);
+}
+
+.btn-large:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 25px rgba(0, 255, 102, 0.3);
+}
+
+.promo-img {
+    width: 100%;
+    border-radius: 16px;
+    border: 2px solid var(--glass-border);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+}
+
+.promo-img:hover {
+    transform: scale(1.02);
+    border-color: var(--neon-green);
+}
+
+/* Galería inferior de módulos */
+.landing-gallery {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.gallery-title {
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 25px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    padding-bottom: 40px;
+}
+
+.gallery-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 15px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.gallery-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--neon-green);
+}
+
+.gallery-card img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.gallery-card h4 {
+    font-size: 1.1rem;
+    color: var(--neon-green);
+    margin-bottom: 8px;
+}
+
+.gallery-card p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+@media(max-width: 900px) {
+    .landing-hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    .landing-text h1 { font-size: 2.3rem; }
+    .btn-large { justify-content: center; width: 100%; }
+}

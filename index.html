@@ -38,8 +38,63 @@
 
     <div class="container">
         
+        <!-- ========================================== -->
+        <!-- PANTALLA DE PUBLICIDAD (LANDING PAGE)      -->
+        <!-- ========================================== -->
+        <div id="landingScreen" class="landing-page-wrapper">
+            <div class="landing-hero">
+                <div class="landing-text">
+                    <h1>Revoluciona tus <br><span class="highlight-green">Entrenamientos</span></h1>
+                    <p>Kikesport es la plataforma definitiva para directores técnicos y preparadores físicos. Gestiona plantillas multideportivas, evalúa el rendimiento físico, exporta a Excel y diseña jugadas en nuestra pizarra táctica interactiva.</p>
+                    
+                    <div class="audio-player">
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;"><i class="fa-solid fa-podcast"></i> Escucha el análisis a fondo de Kikesport:</p>
+                        <audio controls>
+                            <source src="audio/La_tecnología_detrás_de_KikeSport_PRO.m4a" type="audio/mp4">
+                            Tu navegador no soporta el elemento de audio.
+                        </audio>
+                    </div>
+
+                    <button class="btn-primary btn-large" onclick="irAlRegistro()">Comenzar / Iniciar Sesión <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+                
+                <div class="landing-main-image">
+                    <img src="img/multideporte.png" alt="Kikesport Multideporte" class="promo-img">
+                </div>
+            </div>
+
+            <!-- GALERÍA DE MÓDULOS CON TUS IMÁGENES -->
+            <div class="landing-gallery">
+                <h3 class="gallery-title">Explora los Módulos de la Plataforma</h3>
+                <div class="gallery-grid">
+                    <div class="gallery-card">
+                        <img src="img/antropometrico.png" alt="Perfil Antropométrico">
+                        <h4>Perfil Antropométrico</h4>
+                        <p>Seguimiento corporal y métricas físicas detalladas de cada atleta.</p>
+                    </div>
+                    <div class="gallery-card">
+                        <img src="img/hoja-calculo.png" alt="Hoja de Cálculo Integrada">
+                        <h4>Hoja de Cálculo Integrada</h4>
+                        <p>Edición en tiempo real con fórmulas automáticas tipo Excel.</p>
+                    </div>
+                    <div class="gallery-card">
+                        <img src="img/graficas.png" alt="Gráficas de Rendimiento">
+                        <h4>Gráficas de Rendimiento</h4>
+                        <p>Analítica avanzada con diagramas poligonales y estadísticas.</p>
+                    </div>
+                    <div class="gallery-card">
+                        <img src="img/seguridad.png" alt="Seguridad Pro y Licencias">
+                        <h4>Seguridad y Licencias Pro</h4>
+                        <p>Control de acceso avanzado y protección de datos robusta.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
         <!-- PANTALLA AUTH: REGISTRO E INICIO DE SESIÓN -->
-        <div id="authScreen" class="auth-container glass-panel">
+        <!-- ========================================== -->
+        <div id="authScreen" class="auth-container glass-panel hidden">
             <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--glass-border); padding-bottom:10px;">
                 <button id="tabLoginBtn" class="tab-btn active" style="flex:1;" onclick="mostrarTabAuth('login')">Iniciar Sesión</button>
                 <button id="tabRegisterBtn" class="tab-btn" style="flex:1;" onclick="mostrarTabAuth('register')">Registrarse</button>
@@ -87,7 +142,9 @@
             </div>
         </div>
 
-        <!-- DASHBOARD PRINCIPAL -->
+        <!-- ========================================== -->
+        <!-- DASHBOARD PRINCIPAL                        -->
+        <!-- ========================================== -->
         <div id="dashboardScreen" class="grid-dashboard hidden">
             
             <!-- LATERAL: PLANTILLAS -->
@@ -238,7 +295,7 @@
         </div>
     </div>
 
-    <!-- MODAL DE SUSCRIPCIÓN PRO ($125/MES Y $1200/AÑO) -->
+    <!-- MODAL DE SUSCRIPCIÓN PRO -->
     <div id="modalSuscripcion" class="modal-overlay hidden">
         <div class="custom-modal">
             <h2 style="color:var(--pro-gold);"><i class="fa-solid fa-crown"></i> Kikesport PRO</h2>

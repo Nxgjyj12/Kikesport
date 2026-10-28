@@ -9,11 +9,9 @@ const firebaseConfig = {
     measurementId: "G-6EBVY9S750"
 };
 
-// Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
-// --- 1. SEGURIDAD Y UI ---
 function sanitizeHTML(str) {
     const div = document.createElement('div');
     div.textContent = str;
@@ -29,7 +27,6 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// --- 2. BASE DE DATOS LOCAL PARA PLANES Y USUARIOS ---
 function getUsersDB() { return JSON.parse(localStorage.getItem('kikesport_users_db')) || []; }
 function saveUsersDB(users) { localStorage.setItem('kikesport_users_db', JSON.stringify(users)); }
 
@@ -47,7 +44,6 @@ function mostrarTabAuth(tab) {
     }
 }
 
-// --- 3. REGISTRO Y AUTENTICACIÓN CON FIREBASE ---
 let currentUser = null;
 let selectedPlanTipo = 'mensual';
 
@@ -64,16 +60,14 @@ function registrarNuevoUsuario() {
 
     auth.createUserWithEmailAndPassword(email, pass)
         .then((userCredential) => {
-            // Enviar el correo de verificación real
             userCredential.user.sendEmailVerification()
                 .then(() => {
-                    // Guardamos los datos extra (plan y nombre) de forma local
                     const users = getUsersDB();
                     users.push({ email: email.toLowerCase(), username, plan, planTipo: plan === 'pro' ? 'mensual' : 'gratuito' });
                     saveUsersDB(users);
                     
                     showToast("Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta antes de acceder.");
-                    auth.signOut(); // Cerramos la sesión hasta que lo verifique
+                    auth.signOut(); 
                     mostrarTabAuth('login');
                 });
         })
@@ -110,17 +104,18 @@ function cargarDatosUsuario(email) {
     if (localData) {
         currentUser = localData;
     } else {
-        // En caso de que se haya borrado el caché, reconstruimos un usuario básico
         currentUser = { email: email.toLowerCase(), username: email.split('@')[0], plan: 'basica', planTipo: 'gratuito' };
         users.push(currentUser);
         saveUsersDB(users);
     }
     
+    document.getElementById('landingScreen').classList.add('hidden');
+    document.getElementById('authScreen').classList.add('hidden');
+    
     showDashboard();
     showToast(`¡Bienvenido ${sanitizeHTML(currentUser.username)}!`);
 }
 
-// Mantener la sesión activa automáticamente gracias a Firebase
 auth.onAuthStateChanged((user) => {
     if (user && user.emailVerified) {
         cargarDatosUsuario(user.email);
@@ -134,7 +129,6 @@ function logout() {
     });
 }
 
-// --- 4. DEPORTES Y POSICIONES ---
 const SPORT_POSITIONS = {
     Futbol: ["Portero", "Defensa Central", "Lateral", "Mediocentro", "Extremo", "Delantero Centro"],
     Basquetbol: ["Base (PG)", "Escolta (SG)", "Alero (SF)", "Ala-Pívot (PF)", "Pívot (C)"],
@@ -156,7 +150,6 @@ const SPORT_COURT_SVGS = {
     Beisbol: `<svg class="court-svg-bg" viewBox="0 0 600 350" preserveAspectRatio="none"><rect width="600" height="350" fill="#166534"/><path d="M 50,20 L 300,310 L 550,20 Z" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/><path d="M 50,80 Q 300,-30 550,80" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.85"/><polygon points="300,310 420,210 300,110 180,210" fill="#7c2d12" stroke="#ffffff" stroke-width="2" opacity="0.85"/><circle cx="300" cy="210" r="18" fill="#a16207" stroke="#ffffff" stroke-width="2"/><rect x="294" y="208" width="12" height="4" fill="#ffffff"/><polygon points="300,315 293,308 293,302 307,302 307,308" fill="#ffffff"/><rect x="414" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 420 210)"/><rect x="294" y="104" width="12" height="12" fill="#ffffff" transform="rotate(45 300 110)"/><rect x="174" y="204" width="12" height="12" fill="#ffffff" transform="rotate(45 180 210)"/></svg>`
 };
 
-// --- 5. PLANES Y SUSCRIPCIÓN PRO ---
 function abrirModalSuscripcion() { document.getElementById('modalSuscripcion').classList.remove('hidden'); }
 function cerrarModalSuscripcion() { document.getElementById('modalSuscripcion').classList.add('hidden'); }
 
@@ -170,7 +163,6 @@ function confirmarSuscripcionPro() {
     currentUser.plan = 'pro';
     currentUser.planTipo = selectedPlanTipo;
     
-    // Actualizar la base de datos local
     const users = getUsersDB();
     const index = users.findIndex(u => u.email === currentUser.email);
     if(index !== -1) users[index] = currentUser;
@@ -184,6 +176,7 @@ function confirmarSuscripcionPro() {
 
 function showDashboard() {
     document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('landingScreen').classList.add('hidden');
     document.getElementById('dashboardScreen').classList.remove('hidden');
     document.getElementById('userHeaderInfo').classList.remove('hidden');
     document.getElementById('userNameDisplay').innerText = sanitizeHTML(currentUser.username);
@@ -200,7 +193,6 @@ function showDashboard() {
 function getPlantillasDB() { return JSON.parse(localStorage.getItem(`db_${currentUser.email}`)) || []; }
 function savePlantillasDB(data) { localStorage.setItem(`db_${currentUser.email}`, JSON.stringify(data)); }
 
-// --- 6. AUTOMATIZACIÓN DE EQUIPOS ---
 let activePlantillaId = null;
 let activePlantillaData = null;
 let editingPlayerIndex = null;
@@ -371,7 +363,6 @@ function eliminarJugador(idx) {
     }
 }
 
-// --- 7. HOJA DE CÁLCULO NATIVA ---
 function colALetra(index) {
     let letra = ''; while (index >= 0) { letra = String.fromCharCode((index % 26) + 65) + letra; index = Math.floor(index / 26) - 1; }
     return letra;
@@ -513,7 +504,6 @@ function sincronizarHojaAJugadores() {
     showToast("Sincronización de hoja completada.");
 }
 
-// --- 8. PIZARRÓN TÁCTICO Y CANVAS ---
 function initCanvas() {
     const canvas = document.getElementById('drawingCanvas'); ctx = canvas.getContext('2d');
     const resize = () => { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; };
@@ -600,7 +590,6 @@ function resetFormacionOriginal() {
     savePlantillasDB(plantillas); renderCancha(p); showToast("Formación reiniciada");
 }
 
-// --- 9. GRÁFICAS Y EXPORTACIÓN PDF ---
 function renderGraficas(plantilla) {
     if (!plantilla || !plantilla.jugadores.length) {
         if (teamChartObj) teamChartObj.destroy(); if (radarChartObj) radarChartObj.destroy(); return;
@@ -732,4 +721,16 @@ function switchTab(tabName) {
     document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('hidden');
     const idx = {'jugadores':0, 'hojaCalculo':1, 'cancha':2, 'graficas':3}[tabName];
     document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+}
+
+function irAlRegistro() {
+    const landing = document.getElementById('landingScreen');
+    landing.style.opacity = '0';
+    
+    setTimeout(() => {
+        landing.classList.add('hidden');
+        const auth = document.getElementById('authScreen');
+        auth.classList.remove('hidden');
+        auth.style.animation = 'fadeIn 0.5s ease-out';
+    }, 300);
 }
