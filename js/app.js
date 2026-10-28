@@ -177,6 +177,9 @@ let canvasInitialized = false;
 
 function showDashboard() {
     document.getElementById('userHeaderInfo').classList.remove('hidden');
+    // Forzamos que se muestre el contenedor del dashboard principal
+    document.getElementById('dashboardScreen').classList.remove('hidden');
+    
     document.getElementById('userNameDisplay').innerText = sanitizeHTML(currentUser.username);
     
     const badge = document.getElementById('userPlanBadge');
