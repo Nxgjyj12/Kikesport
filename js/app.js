@@ -1,11 +1,12 @@
-// --- CONFIGURACIÓN DE FIREBASE (Debes poner tus datos reales aquí) ---
+// --- CONFIGURACIÓN DE FIREBASE ---
 const firebaseConfig = {
-    apiKey: "TU_API_KEY",
-    authDomain: "TU_PROYECTO.firebaseapp.com",
-    projectId: "TU_PROYECTO",
-    storageBucket: "TU_PROYECTO.appspot.com",
-    messagingSenderId: "TU_MESSAGING_SENDER_ID",
-    appId: "TU_APP_ID"
+    apiKey: "AIzaSyC3j2gbwzjjNPH_s7G8iAzXcHImkR3jfLE",
+    authDomain: "kikesport-3a34f.firebaseapp.com",
+    projectId: "kikesport-3a34f",
+    storageBucket: "kikesport-3a34f.firebasestorage.app",
+    messagingSenderId: "668077708122",
+    appId: "1:668077708122:web:054ea1c16ef3fd9ec95963",
+    measurementId: "G-6EBVY9S750"
 };
 
 // Inicializar Firebase
