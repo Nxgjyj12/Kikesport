@@ -15,6 +15,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
+    <!-- LIBRERÍAS DE FIREBASE -->
+    <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-auth-compat.js"></script>
+
     <!-- Estilos de la Subcarpeta CSS -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -44,14 +48,14 @@
             <!-- FORMULARIO 1: INICIAR SESIÓN -->
             <div id="formLogin">
                 <div class="form-group">
-                    <label for="authUsername">Usuario / Email</label>
-                    <input type="text" id="authUsername" placeholder="Ej. Entrenador1">
+                    <label for="authEmail">Correo Electrónico</label>
+                    <input type="email" id="authEmail" placeholder="entrenador@ejemplo.com">
                 </div>
                 <div class="form-group">
                     <label for="authPassword">Contraseña</label>
                     <input type="password" id="authPassword" placeholder="••••••••">
                 </div>
-                <button class="btn-primary" onclick="iniciarPrimerPasoAuth()">Continuar con Verificación</button>
+                <button class="btn-primary" onclick="iniciarSesion()">Iniciar Sesión</button>
             </div>
 
             <!-- FORMULARIO 2: REGISTRO DE NUEVO USUARIO -->
@@ -65,7 +69,7 @@
                     <input type="email" id="regEmail" placeholder="entrenador@ejemplo.com">
                 </div>
                 <div class="form-group">
-                    <label for="regPassword">Contraseña</label>
+                    <label for="regPassword">Contraseña (Mín. 6 caracteres)</label>
                     <input type="password" id="regPassword" placeholder="••••••••">
                 </div>
                 <div class="form-group">
@@ -80,29 +84,6 @@
                     </select>
                 </div>
                 <button class="btn-primary" onclick="registrarNuevoUsuario()">Crear Cuenta y Verificar</button>
-            </div>
-        </div>
-
-        <!-- PANTALLA DE VERIFICACIÓN PIN 2FA -->
-        <div id="securityStepScreen" class="auth-container glass-panel hidden">
-            <div style="text-align: center;">
-                <i class="fa-solid fa-shield-halved fa-2x" style="color:var(--neon-green); margin-bottom:10px;"></i>
-                <h2>Verificación de Seguridad</h2>
-                <p style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">
-                    Ingresa el código PIN generado para completar tu acceso:
-                </p>
-                
-                <div id="securityCodeDisplay" style="background: rgba(0,255,102,0.1); border: 1px dashed var(--neon-green); color: var(--neon-green); font-weight: 800; font-size: 24px; letter-spacing: 5px; padding: 10px; border-radius: 8px; margin: 15px 0;">
-                    ------
-                </div>
-
-                <div class="form-group">
-                    <label for="inputSecurityCode">Código PIN de 6 dígitos</label>
-                    <input type="text" id="inputSecurityCode" maxlength="6" style="text-align:center; font-size:18px; letter-spacing:3px;" placeholder="000000">
-                </div>
-
-                <button class="btn-primary" onclick="verificarCodigoSeguridad()">Verificar e Iniciar Sesión</button>
-                <button class="btn-secondary" style="width:100%; margin-top:10px;" onclick="cancelarAuth()">Volver</button>
             </div>
         </div>
 

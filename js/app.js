@@ -1,3 +1,17 @@
+// --- CONFIGURACIÓN DE FIREBASE (Debes poner tus datos reales aquí) ---
+const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_MESSAGING_SENDER_ID",
+    appId: "TU_APP_ID"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
 // --- 1. SEGURIDAD Y UI ---
 function sanitizeHTML(str) {
     const div = document.createElement('div');
@@ -14,7 +28,7 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// --- 2. BASE DE DATOS DE USUARIOS ---
+// --- 2. BASE DE DATOS LOCAL PARA PLANES Y USUARIOS ---
 function getUsersDB() { return JSON.parse(localStorage.getItem('kikesport_users_db')) || []; }
 function saveUsersDB(users) { localStorage.setItem('kikesport_users_db', JSON.stringify(users)); }
 
@@ -32,10 +46,8 @@ function mostrarTabAuth(tab) {
     }
 }
 
-// --- 3. REGISTRO Y AUTENTICACIÓN CON 2FA ---
+// --- 3. REGISTRO Y AUTENTICACIÓN CON FIREBASE ---
 let currentUser = null;
-let pendingUserSession = null;
-let generatedSecurityCode = null;
 let selectedPlanTipo = 'mensual';
 
 function registrarNuevoUsuario() {
@@ -45,87 +57,81 @@ function registrarNuevoUsuario() {
     const confirmPass = document.getElementById('regConfirmPassword').value.trim();
     const plan = document.getElementById('regPlan').value;
 
-    if (!username || !email || !pass || !confirmPass) {
-        return showToast("Completa todos los campos de registro", "error");
-    }
-    if (pass !== confirmPass) {
-        return showToast("Las contraseñas no coinciden", "error");
-    }
-    if (pass.length < 4) {
-        return showToast("La contraseña debe tener al menos 4 caracteres", "error");
-    }
+    if (!username || !email || !pass || !confirmPass) return showToast("Completa todos los campos", "error");
+    if (pass !== confirmPass) return showToast("Las contraseñas no coinciden", "error");
+    if (pass.length < 6) return showToast("La contraseña debe tener al menos 6 caracteres", "error");
 
-    const users = getUsersDB();
-    if (users.some(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase())) {
-        return showToast("El usuario o correo ya se encuentra registrado", "error");
-    }
-
-    const newUser = { username, email, password: pass, plan, planTipo: plan === 'pro' ? 'mensual' : 'gratuito' };
-    users.push(newUser);
-    saveUsersDB(users);
-
-    pendingUserSession = newUser;
-    generarEIniciarPasoSeguridad(username);
-    showToast("Registro exitoso. Procede con la verificación.");
+    auth.createUserWithEmailAndPassword(email, pass)
+        .then((userCredential) => {
+            // Enviar el correo de verificación real
+            userCredential.user.sendEmailVerification()
+                .then(() => {
+                    // Guardamos los datos extra (plan y nombre) de forma local
+                    const users = getUsersDB();
+                    users.push({ email: email.toLowerCase(), username, plan, planTipo: plan === 'pro' ? 'mensual' : 'gratuito' });
+                    saveUsersDB(users);
+                    
+                    showToast("Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta antes de acceder.");
+                    auth.signOut(); // Cerramos la sesión hasta que lo verifique
+                    mostrarTabAuth('login');
+                });
+        })
+        .catch((error) => {
+            if (error.code === 'auth/email-already-in-use') showToast("El correo ya está registrado", "error");
+            else showToast("Error al registrar: " + error.message, "error");
+        });
 }
 
-function iniciarPrimerPasoAuth() {
-    const userOrEmail = document.getElementById('authUsername').value.trim();
+function iniciarSesion() {
+    const email = document.getElementById('authEmail').value.trim();
     const pass = document.getElementById('authPassword').value.trim();
 
-    if (!userOrEmail || !pass) return showToast("Ingresa usuario/correo y contraseña", "error");
+    if (!email || !pass) return showToast("Ingresa tu correo y contraseña", "error");
 
+    auth.signInWithEmailAndPassword(email, pass)
+        .then((userCredential) => {
+            if (!userCredential.user.emailVerified) {
+                showToast("Por favor verifica tu correo electrónico antes de ingresar.", "error");
+                auth.signOut();
+            } else {
+                cargarDatosUsuario(userCredential.user.email);
+            }
+        })
+        .catch((error) => {
+            showToast("Correo o contraseña incorrectos", "error");
+        });
+}
+
+function cargarDatosUsuario(email) {
     const users = getUsersDB();
-    let found = users.find(u => (u.username.toLowerCase() === userOrEmail.toLowerCase() || u.email.toLowerCase() === userOrEmail.toLowerCase()) && u.password === pass);
-
-    if (!found) {
-        if (users.length === 0) {
-            found = { username: userOrEmail, email: `${userOrEmail}@kikesport.com`, password: pass, plan: 'basica', planTipo: 'gratuito' };
-            users.push(found);
-            saveUsersDB(users);
-        } else {
-            return showToast("Credenciales incorrectas o usuario no registrado", "error");
-        }
-    }
-
-    pendingUserSession = found;
-    generarEIniciarPasoSeguridad(found.username);
-}
-
-function generarEIniciarPasoSeguridad(username) {
-    generatedSecurityCode = Math.floor(100000 + Math.random() * 900000).toString();
-    document.getElementById('securityCodeDisplay').innerText = generatedSecurityCode;
-
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('securityStepScreen').classList.remove('hidden');
-}
-
-function verificarCodigoSeguridad() {
-    const inputCode = document.getElementById('inputSecurityCode').value.trim();
-    if (inputCode !== generatedSecurityCode) {
-        return showToast("Código PIN de seguridad incorrecto.", "error");
-    }
-
-    currentUser = pendingUserSession;
-    localStorage.setItem('kikesport_session', JSON.stringify(currentUser));
+    const localData = users.find(u => u.email === email.toLowerCase());
     
-    document.getElementById('securityStepScreen').classList.add('hidden');
-    document.getElementById('inputSecurityCode').value = '';
+    if (localData) {
+        currentUser = localData;
+    } else {
+        // En caso de que se haya borrado el caché, reconstruimos un usuario básico
+        currentUser = { email: email.toLowerCase(), username: email.split('@')[0], plan: 'basica', planTipo: 'gratuito' };
+        users.push(currentUser);
+        saveUsersDB(users);
+    }
+    
     showDashboard();
     showToast(`¡Bienvenido ${sanitizeHTML(currentUser.username)}!`);
 }
 
-function cancelarAuth() {
-    document.getElementById('securityStepScreen').classList.add('hidden');
-    document.getElementById('authScreen').classList.remove('hidden');
-}
+// Mantener la sesión activa automáticamente gracias a Firebase
+auth.onAuthStateChanged((user) => {
+    if (user && user.emailVerified) {
+        cargarDatosUsuario(user.email);
+    }
+});
 
-function checkSession() {
-    const saved = localStorage.getItem('kikesport_session');
-    if (saved) { currentUser = JSON.parse(saved); showDashboard(); }
+function logout() { 
+    auth.signOut().then(() => {
+        currentUser = null;
+        location.reload(); 
+    });
 }
-
-function logout() { localStorage.removeItem('kikesport_session'); location.reload(); }
 
 // --- 4. DEPORTES Y POSICIONES ---
 const SPORT_POSITIONS = {
@@ -162,7 +168,13 @@ function seleccionarPlanSuscripcion(tipo) {
 function confirmarSuscripcionPro() {
     currentUser.plan = 'pro';
     currentUser.planTipo = selectedPlanTipo;
-    localStorage.setItem('kikesport_session', JSON.stringify(currentUser));
+    
+    // Actualizar la base de datos local
+    const users = getUsersDB();
+    const index = users.findIndex(u => u.email === currentUser.email);
+    if(index !== -1) users[index] = currentUser;
+    saveUsersDB(users);
+
     cerrarModalSuscripcion();
     showDashboard();
     const precioText = selectedPlanTipo === 'mensual' ? '$125 MXN/mes' : '$1,200 MXN/año';
@@ -181,10 +193,11 @@ function showDashboard() {
     
     renderPlantillasList();
     applyProRestrictions();
+    initCanvas();
 }
 
-function getPlantillasDB() { return JSON.parse(localStorage.getItem(`db_${currentUser.username}`)) || []; }
-function savePlantillasDB(data) { localStorage.setItem(`db_${currentUser.username}`, JSON.stringify(data)); }
+function getPlantillasDB() { return JSON.parse(localStorage.getItem(`db_${currentUser.email}`)) || []; }
+function savePlantillasDB(data) { localStorage.setItem(`db_${currentUser.email}`, JSON.stringify(data)); }
 
 // --- 6. AUTOMATIZACIÓN DE EQUIPOS ---
 let activePlantillaId = null;
@@ -325,7 +338,7 @@ function renderJugadores() {
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-weight:800; font-size:16px; color:var(--neon-green); margin-right:5px;">${j.promedio}</span>
-                    <button class="action-btn-small" onclick="prepararEdicionJugador(${idx})">✏️️</button>
+                    <button class="action-btn-small" onclick="prepararEdicionJugador(${idx})">✏</button>
                     <button class="action-btn-small" style="color:var(--danger-red); border-color:var(--danger-red)" onclick="eliminarJugador(${idx})">🗑️</button>
                 </div>
             </div>`;
